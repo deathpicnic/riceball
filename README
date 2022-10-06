@@ -1,0 +1,20 @@
+    ----------------------------------
+	RiCeBaLL
+	========
+	- An offline PKG installer for Picnic OS
+
+    @deathpicnic
+    ----------------------------------
+	
+	riceballs are must in picnic.
+
+[+] USAGE
+=========
+	
+	[ sudo riceball <create|install|info|clean|help> ]
+
+	- create : creates new package spec
+	- install : install created packages from spec file
+	- info : displays spec file for pkg
+	- clean : removes `build` dir
+	- help : prints this

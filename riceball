@@ -1,0 +1,160 @@
+#!/usr/bin/python3
+
+import os, sys, json, subprocess
+
+def require_root():
+	if os.geteuid() != 0:
+		print("run as sudo")
+		exit(1)
+
+os.system("mkdir -p /etc/riceball")
+
+#print(json.dumps(SPEC, indent=4))
+
+def _help():
+
+	print("\n\tRiCeBaLL\n\t========")
+	print("\t- An offline PKG installer for Picnic OS\n")
+
+	print("[+]USAGE : sudo riceball <create|install|info|clean|help>\n")
+	print("\tcreate : creates new package spec")
+	print("\tinstall : install created packages from spec file")
+	print("\tinfo : displays spec file for pkg")
+	print("\tclean : removes `build` dir")
+	print("\thelp : prints this\n")
+	
+	print("riceballs are must in picnic"
+)
+def _create():
+	require_root()
+	SPEC = {
+
+    	'name' : '',
+
+    	'version' : '',
+    	'author' : '',
+
+    	'url' : '',
+    	'md5sum' : '',
+
+    	'installer_dir' : '',
+    	'installer_type' : '',
+    	'installer' : '',
+
+    	'exec_command' : '',
+	}
+	
+	def _input(text, required:bool, default:str=None):
+
+		var:str = ""
+		if not default and required:
+			while var == "":
+				var = input(f"Enter {text} *: ")
+		elif default and required:
+			var = input(f"Enter {text} (default : {default})*: ")
+			if var == "": var = default
+		else:
+			var = input(f"Enter {text} (default : {default}) : ")
+			if var == "": var = default
+
+		return var
+	
+	print("(* : required)")
+
+	SPEC['name'] = _input("PKG Name", True)
+	SPEC['version'] = _input("Version", False, "")
+	SPEC['author'] = _input("Author Name", False, "")
+	SPEC['url'] = _input("URL", True)
+	SPEC['md5sum'] = _input("MD5sum", False, "")
+	SPEC['installer_dir'] = f"/etc/riceball/{SPEC['name'][0]}/{SPEC['name']}"
+	SPEC['installer_type'] = f"sh"
+	SPEC['installer'] = f"{SPEC['installer_dir']}/installer.sh"
+	SPEC['exec_command'] = f"{SPEC['installer']}"
+
+	os.system(f"mkdir -pv {SPEC['installer_dir']}")
+	os.system(f"rm -rf {SPEC['installer_dir']}/*")
+	os.system(f"mkdir -pv {SPEC['installer_dir']}/build")
+	os.system(f"touch {SPEC['installer']}")
+
+	with open(f"{SPEC['installer']}", "w") as installer:
+		installer.write("#!/usr/bin/bash\n\n")
+		installer.write(f"pushd {SPEC['installer_dir']}build\n\n")
+		installer.write(f"\t#if [[ ! -f {SPEC['url'].split('/')[-1]} ]]; then wget {SPEC['url']} --no-check-certificate ; fi\n")
+		installer.write(f"\t#tar -xvf {SPEC['url'].split('/')[-1]}\n")
+		installer.write(f"\t#script here (PWD:{SPEC['installer_dir']}/build/)\n\n")
+		installer.write("popd\n")
+		installer.close()
+
+
+	print(json.dumps(SPEC, indent=4))
+	
+	spec_file = f"{SPEC['installer_dir']}/{SPEC['name']}.spec"		
+	with open(spec_file, "w") as outfile:
+		outfile.write(json.dumps(SPEC, indent=4))
+	
+	print(f"[+] EDIT : {SPEC['installer']}")
+
+
+def _install():
+	require_root()
+	if len(sys.argv[2:]) < 1:
+		name:str = ""
+		while name == "": name = input("PKG Name to install : ")
+	else: name = sys.argv[2]
+	spec_file = f"/etc/riceball/{name[0]}/{name}/{name}.spec"
+	if os.path.exists(spec_file):
+		with open(spec_file, 'r') as spec:
+			SPEC = json.load(spec)
+		print(json.dumps(SPEC, indent=4))
+		
+		os.system(f"chmod +x {SPEC['installer']}")
+		subprocess.Popen([f"{SPEC['exec_command']}",], shell=True)
+		print(f"{SPEC['name']}...........installation seems [ok]")
+	else: print(f"No spec file found for `{name}`  at {spec_file}")
+
+
+def _info():
+
+	if len(sys.argv[2:]) < 1:
+		name:str = ""
+		while name == "": name = input("info about ? : ")
+	else: name = sys.argv[2]
+	spec_file = f"/etc/riceball/{name[0]}/{name}/{name}.spec"
+	if os.path.exists(spec_file):
+		with open(spec_file, 'r') as spec:
+			SPEC = json.load(spec)
+		print(json.dumps(SPEC, indent=4))
+
+	else: print(f"No spec file found for `{name}`  at {spec_file}")
+
+def _clean():
+	require_root()
+	if len(sys.argv[2:]) < 1:
+		name:str = ""
+		while name == "": name = input("clean which PKG ? : ")
+	else: name = sys.argv[2]
+	
+	spec_file = f"/etc/riceball/{name[0]}/{name}/{name}.spec"
+	if os.path.exists(spec_file):
+		with open(spec_file, 'r') as spec:
+			SPEC = json.load(spec)
+		if os.path.isdir(f"{SPEC['installer_dir']}/build"):
+			os.system(f"rm -rf {SPEC['installer_dir']}/build") 
+	else: print(f"No spec file found for `{name}`  at {spec_file}")
+
+if len(sys.argv[1:]) < 1:
+	_help()
+	exit()
+
+
+avail_commands = { 'create' : _create,
+                'install' : _install,
+				'info' : _info,
+				'clean' : _clean,
+                'help' : _help }
+
+
+base_command = str(sys.argv[1]).lower()
+if base_command not in avail_commands: _help(); exit()
+try: avail_commands[base_command]()
+except KeyboardInterrupt: print('...'); exit(1)
